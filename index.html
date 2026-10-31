@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GrammarFix – Dangling-Else Resolver</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- ================= HEADER ================= -->
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Compiler Design · Parsing &amp; Ambiguity</p>
+      <h1>GrammarFix <span class="thin">– Dangling-Else Resolver</span></h1>
+      <p class="lead">
+        Type nested <code>if / else</code> statements and see whether the <strong>else</strong> can belong to
+        more than one <strong>if</strong>. GrammarFix shows every possible parse tree, then fixes the
+        grammar with <em>matched</em> and <em>unmatched</em> statements so only one tree remains.
+      </p>
+    </div>
+  </header>
+
+  <nav class="topnav">
+    <div class="wrap">
+      <a href="#input">Input</a>
+      <a href="#result">Result</a>
+      <a href="#grammar">Grammar</a>
+      <a href="#trees">Parse trees</a>
+      <a href="#tests">Test cases</a>
+      <a href="#explain">Explanation</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+
+    <!-- ================= 1. INPUT ================= -->
+    <section class="card" id="input">
+      <h2><span class="num">1</span> Input</h2>
+      <p class="muted">
+        Write nested if-else code. Both styles work:
+        <code>if (a) if (b) x = 1; else y = 2;</code> or
+        <code>if E1 then if E2 then S1 else S2</code>. Braces <code>{ }</code> are supported too.
+      </p>
+
+      <label class="field-label" for="code">Your code</label>
+      <textarea id="code" spellcheck="false" rows="7"
+                placeholder="if (a) if (b) x = 1; else y = 2;"></textarea>
+
+      <div class="actions">
+        <button id="analyzeBtn" class="btn primary" type="button">Analyze</button>
+        <button id="clearBtn" class="btn ghost" type="button">Clear</button>
+        <span class="hint">Tip: press Ctrl + Enter to analyze</span>
+      </div>
+
+      <p class="field-label">Sample programs (click to load)</p>
+      <div id="samples" class="chips"><span class="muted">Loading samples…</span></div>
+
+      <div id="errorBox" class="error hidden" role="alert"></div>
+    </section>
+
+    <!-- ================= 2. RESULT ================= -->
+    <section class="card" id="result">
+      <h2><span class="num">2</span> Ambiguity detection</h2>
+      <div id="resultEmpty" class="placeholder">Click <strong>Analyze</strong> to see the result.</div>
+      <div id="resultBody" class="hidden">
+        <div id="verdict" class="verdict"></div>
+        <div id="stats" class="stats"></div>
+
+        <h3>Which if gets which else?</h3>
+        <div class="table-scroll">
+          <table class="table" id="ifTable">
+            <thead>
+              <tr><th>If</th><th>Condition</th><th>Status (matched / unmatched)</th><th>Its else</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div id="danglingBox" class="hidden">
+          <h3>The two (or more) interpretations of the else</h3>
+          <ul id="danglingList" class="plain-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3. GRAMMAR ================= -->
+    <section class="card" id="grammar">
+      <h2><span class="num">3</span> Grammar transformation</h2>
+      <div class="grid2">
+        <div class="grammar-box bad">
+          <h3>Original grammar <span class="badge red">ambiguous</span></h3>
+<pre class="grammar">S → if E then S
+S → if E then S else S
+S → other</pre>
+          <p class="muted">
+            For <code>if E then if E then other else other</code> this grammar gives
+            <strong>two</strong> parse trees.
+          </p>
+        </div>
+        <div class="grammar-box good">
+          <h3>Transformed grammar <span class="badge green">unambiguous</span></h3>
+<pre class="grammar">S → M | U
+M → if E then M else M | other
+U → if E then S | if E then M else U</pre>
+          <p class="muted">
+            The same strings, but every string has <strong>exactly one</strong> parse tree.
+          </p>
+        </div>
+      </div>
+
+      <h3>How the transformation works</h3>
+      <ol class="steps">
+        <li><strong>Split statements into two kinds.</strong>
+          <span class="tag m">M</span> <em>matched</em>: every if has its own else (or the statement is
+          just <code>other</code>). <span class="tag u">U</span> <em>unmatched</em>: some if is still
+          waiting for an else.</li>
+        <li><strong>Restrict what may stand between <code>then</code> and <code>else</code>.</strong>
+          In <code>M → if E then M else M</code> the then-part must be <span class="tag m">M</span>.
+          An if without else can never appear there.</li>
+        <li><strong>Let unmatched ifs absorb the else.</strong>
+          <code>U → if E then M else U</code> and <code>U → if E then S</code> describe an if that is
+          still open, so the else is always paired with the <em>nearest</em> open if.</li>
+      </ol>
+      <p class="muted">Result: the only way to read <code>if a if b x else y</code> is "the else belongs to
+        <code>if b</code>" – exactly what C and Java do.</p>
+    </section>
+
+    <!-- ================= 4. PARSE TREES ================= -->
+    <section class="card" id="trees">
+      <h2><span class="num">4</span> Parse tree visualization</h2>
+      <p class="muted">
+        Matching colours show which <strong>if</strong> receives which <strong>else</strong>.
+        <span class="legend-dot c0"></span><span class="legend-dot c1"></span><span class="legend-dot c2"></span>
+        An <em>if</em> box and its <em>else</em> box always share the same colour.
+        Scroll sideways if a tree is wide.
+      </p>
+
+      <h3>Before – original grammar <span class="badge red">possible parse trees</span></h3>
+      <div id="beforeEmpty" class="placeholder">Analyze some code to see the trees.</div>
+      <div id="beforeTrees" class="grid-trees"></div>
+      <p id="beforeMore" class="muted hidden"></p>
+
+      <h3>After – matched/unmatched grammar <span class="badge green">single parse tree</span></h3>
+      <div id="afterEmpty" class="placeholder">Analyze some code to see the tree.</div>
+      <div id="afterTree"></div>
+    </section>
+
+    <!-- ================= 5. TEST CASES ================= -->
+    <section class="card" id="tests">
+      <h2><span class="num">5</span> Test cases</h2>
+      <p class="muted">
+        Each case is run through the real parser. "Expected" is the answer worked out by hand;
+        "Computed" is what GrammarFix found. You can also test your own input in section 1.
+      </p>
+      <div id="testSummary" class="test-summary">Loading test cases…</div>
+      <div class="table-scroll">
+        <table class="table" id="testTable">
+          <thead>
+            <tr><th>#</th><th>Case</th><th>Code</th><th>Expected</th><th>Computed</th><th>Parse trees</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 6. EXPLANATION ================= -->
+    <section class="card" id="explain">
+      <h2><span class="num">6</span> Explanation</h2>
+      <div class="rule-box">
+        <strong>Nearest-unmatched-if rule:</strong>
+        an else clause is associated with the nearest preceding unmatched if statement.
+      </div>
+      <div id="explainEmpty" class="placeholder">Analyze some code to get an explanation of your result.</div>
+      <div id="explainBody"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">GrammarFix · Compiler Design Hackathon project · Flask + HTML/CSS/JS</div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
